@@ -19,3 +19,4 @@ def stepik_classification(example_config: Dict[str, int]):
     model.fit(X, y)
     
     print(model.leafs_cnt)
+    model.build_tree()
