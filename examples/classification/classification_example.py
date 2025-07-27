@@ -19,6 +19,7 @@ def classification(example_config: Dict[str, int]):
     model.fit(X_train, y_train)
     
     y_predict = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)
     model.build_tree()
       
     figure, axes = plt.subplots(nrows=1, ncols=3)
