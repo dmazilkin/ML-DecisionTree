@@ -122,4 +122,21 @@ class MyTreeClf:
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
         self.tree = self._fit(X, y, parent=None)
-            
+        
+    def _predict(self, X: pd.DataFrame, node: Union[Node, None] = None) -> int:
+        current: Union['MyTreeClf.Node', np.ndarray] = self.tree if node is None else node
+        
+        if not isinstance(current, MyTreeClf.Node):
+            proba = np.sum(node == 1) / node.size 
+            return 1 if proba > 0.5 else 0
+        else:
+            return self._predict(X, current.left) if X[int(current.column)] <= current.sep else self._predict(X, current.right)
+        
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        dataset = X.reset_index(drop=True)
+        labels = np.zeros(dataset.shape[0])
+        
+        for index, row in dataset.iterrows():
+            labels[index] =  self._predict(row)
+        
+        return labels
