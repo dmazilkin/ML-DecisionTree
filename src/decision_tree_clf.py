@@ -13,12 +13,21 @@ class MyTreeClf:
         sep: float = 0.0
         column: str = ''
         
+    @dataclass 
+    class Container:
+        type: str
+        ptr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf']
+        
     @dataclass
     class Node:
         sep: float = None
-        column: str = None
-        left: Union['Node', np.ndarray] = None
-        right: Union['Node', np.ndarray] = None
+        column: Union[str, int] = None
+        left: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'] = None
+        right: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'] = None
+        
+    @dataclass 
+    class Leaf:
+        value: np.ndarray
     
     def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20) -> None:
         self.max_depth = max_depth
@@ -26,7 +35,8 @@ class MyTreeClf:
         self.max_leafs = max_leafs if max_leafs > 1 else 2
         self.leafs_cnt = 0
         self._depth = 1
-        self.tree = None
+        self._expanded = 0
+        self._tree: 'MyTreeClf.Container' = None
         
     def __str__(self) -> str:
         return f"MyTreeClf class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"
@@ -59,7 +69,7 @@ class MyTreeClf:
                 if ig > best_split.ig:
                     best_split.ig = ig
                     best_split.sep = sep
-                    best_split.column = str(column)
+                    best_split.column = column
                     best_split.left = left
                     best_split.right = right
                     
@@ -68,75 +78,89 @@ class MyTreeClf:
     def _is_leaf(self, y: pd. Series) -> bool:
         return y.size < self.min_samples_split or self.calc_entropy(y) == 0.0
     
-    def _build_tree(self, node: Node, level: int) -> None:
-        if not isinstance(node, pd.Series):
-            print((level - 1) * '\t' + node.column + ': ')
+    def _is_expandable(self) -> bool:
+        return self.leafs_cnt + 2 <= self.max_leafs and self._expanded + 2 <= self.max_leafs
+    
+    def _build_tree(self, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'], level: int) -> None:
+        if cntr.type == 'node':
+            print((level - 1) * '\t' + cntr.ptr.column + ': ')
             print((level - 1) * '\t', end='')
-            print(node.sep)
+            print(cntr.ptr.sep)
             print((level - 1) * '\t' + 'left:')
-            self._build_tree(node.left, level+1)
-            if node.right is not None:
-                print((level - 1) * '\t' + 'right:')
-                self._build_tree(node.right, level+1)
-        else:
+            self._build_tree(cntr.ptr.left, level+1)
+            print((level - 1) * '\t' + 'right:')
+            self._build_tree(cntr.ptr.right, level+1)
+        if cntr.type == 'leaf':
             print(level * '\t' + 'proba: ')
             print(level * '\t', end='')
-            print(np.sum(node == 1) / node.size)
+            print(np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size)
         
     def build_tree(self) -> None:
-        self._build_tree(self.tree, 1)
+        self._build_tree(self._tree, 1)
     
-    def _fit(self, X: pd.DataFrame, y: pd.Series, parent: Node) -> Union[Node, pd.Series]:
+    def _fit(self, X: pd.DataFrame, y: pd.Series) -> Union[Node, pd.Series]:
         if (self.max_depth >= self._depth):
-            if not self._is_leaf(y) and (self.leafs_cnt + 2 <= self.max_leafs):
+            if not self._is_leaf(y) and self._is_expandable():
                 column, sep, ig, left, right = self.get_best_split(X, y)
-                node = self.Node(sep=sep, column=column)
-                            
+                cntr = self.Container(type='node', ptr=self.Node(sep=sep, column=column))
+                self._expanded += 1
+
                 self._depth += 1
-                node.left = self._fit(X.loc[left.index], left, node)
-                node.right = self._fit(X.loc[right.index], right, node)
+                cntr.ptr.left = self._fit(X.loc[left.index], left)
+                cntr.ptr.right = self._fit(X.loc[right.index], right)
                 self._depth -= 1
                 
-                if node.left is None and node.right is None:
-                    if self.leafs_cnt < self.max_leafs:                
-                        self.leafs_cnt += 1
-                        return y
-                    else:
-                        return None
-                else:
-                    return node
+                return cntr
             else:
-                if self.leafs_cnt < self.max_leafs:
-                    self.leafs_cnt += 1
-                
-                    return y
-                else:
-                    return None
-        else:
-            if self.leafs_cnt < self.max_leafs:
                 self.leafs_cnt += 1
                 
-                return y
-            else:
-                return None
+                return self.Container(type='leaf', ptr=self.Leaf(value=y))
+        else:
+            self.leafs_cnt += 1
+               
+            return self.Container(type='leaf', ptr=self.Leaf(value=y))
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        self.tree = self._fit(X, y, parent=None)
+        self._tree = self._fit(X, y)
         
-    def _predict(self, X: pd.DataFrame, node: Union[Node, None] = None) -> int:
-        current: Union['MyTreeClf.Node', np.ndarray] = self.tree if node is None else node
+    def _calc_proba(self, cntr: 'MyTreeClf.Container') -> float:
+        return np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size
         
-        if not isinstance(current, MyTreeClf.Node):
-            proba = np.sum(node == 1) / node.size 
+    def _predict(self, X: pd.DataFrame, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf']) -> int:
+        if cntr.type == 'leaf':
+            proba = self._calc_proba(cntr)
             return 1 if proba > 0.5 else 0
-        else:
-            return self._predict(X, current.left) if X[int(current.column)] <= current.sep else self._predict(X, current.right)
         
+        if cntr.type == 'node':
+            if X[cntr.ptr.column] <= cntr.ptr.sep and cntr.ptr.left is not None:
+                return self._predict(X, cntr.ptr.left)
+            if X[cntr.ptr.column] > cntr.ptr.sep and cntr.ptr.right is not None:
+                return self._predict(X, cntr.ptr.right)
+                    
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         dataset = X.reset_index(drop=True)
-        labels = np.zeros(dataset.shape[0])
+        labels = np.zeros(dataset.shape[0], dtype='int')
         
         for index, row in dataset.iterrows():
-            labels[index] =  self._predict(row)
+            labels[index] = self._predict(row, self._tree)
         
         return labels
+    
+    def _predict_proba(self, X: pd.DataFrame, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf']) -> float:
+        if cntr.type == 'leaf':
+            return self._calc_proba(cntr)
+        
+        if cntr.type == 'node':
+            if X[cntr.ptr.column] <= cntr.ptr.sep and cntr.ptr.left is not None:
+                return self._predict_proba(X, cntr.ptr.left)
+            if X[cntr.ptr.column] > cntr.ptr.sep and cntr.ptr.right is not None:
+                return self._predict_proba(X, cntr.ptr.right)
+            
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        dataset = X.reset_index(drop=True)
+        labels_proba = np.zeros(dataset.shape[0], dtype='float')
+        
+        for index, row in dataset.iterrows():
+            labels_proba[index] = self._predict_proba(row, self._tree)
+        
+        return labels_proba
