@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Tuple, Optional, Union
+from typing import Tuple, Union, Dict
 from dataclasses import dataclass
 
 class MyTreeClf:
@@ -29,7 +29,7 @@ class MyTreeClf:
     class Leaf:
         value: np.ndarray
     
-    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20) -> None:
+    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20, bins: Union[None, int] = None) -> None:
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.max_leafs = max_leafs if max_leafs > 1 else 2
@@ -37,10 +37,11 @@ class MyTreeClf:
         self._depth = 1
         self._expanded = 0
         self._tree: 'MyTreeClf.Container' = None
+        self.bins = bins
         
     def __str__(self) -> str:
-        return f"MyTreeClf class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"
-    
+        return f"MyTreeClf class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"        
+        
     def calc_entropy(self, y: pd.Series) -> float:
         entropy = 0
         labels_count = y.size
@@ -83,7 +84,8 @@ class MyTreeClf:
     
     def _build_tree(self, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'], level: int) -> None:
         if cntr.type == 'node':
-            print((level - 1) * '\t' + cntr.ptr.column + ': ')
+            column = cntr.ptr.column if isinstance(cntr.ptr.column, str) else str(cntr.ptr.column)
+            print((level - 1) * '\t' + column + ': ')
             print((level - 1) * '\t', end='')
             print(cntr.ptr.sep)
             print((level - 1) * '\t' + 'left:')
@@ -119,8 +121,25 @@ class MyTreeClf:
             self.leafs_cnt += 1
                
             return self.Container(type='leaf', ptr=self.Leaf(value=y))
-
+        
+    def _check_bins(self, X: pd.DataFrame) -> Dict[Union[str, int], Dict[int, np.ndarray]]:
+        hist = dict()
+        
+        for column in X.columns:
+            attr: pd.Series = X[column].sort_values()
+            unqiue_values: np.ndarray = attr.unique()
+            
+            if unqiue_values.size - 1 > self.bins - 1:
+                count, edges = np.histogram(attr, bins=self.bins)
+                hist[column] = {'count': count, 'edges': edges}
+                
+        return hist if len(hist) > 0 else None
+        
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+        hist: Dict[Union[str, int], np.ndarray] = None
+        if self.bins is not None:
+            hist = self._check_bins(X)
+        print(hist)
         self._tree = self._fit(X, y)
         
     def _calc_proba(self, cntr: 'MyTreeClf.Container') -> float:
