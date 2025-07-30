@@ -54,17 +54,23 @@ class MyTreeClf:
             
         return entropy
     
-    def get_best_split(self, X: pd.DataFrame, y: pd.Series) -> Tuple[str, float, float, pd.DataFrame, pd.DataFrame]:
+    def get_best_split(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Tuple[str, float, float, pd.DataFrame, pd.DataFrame]:
         best_split = self.BestSplit()
         
         for column in X.columns:
             attr: pd.Series = X[column].sort_values()
             unqiue_values: np.ndarray = attr.unique()
-            separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
+            
+            if hist is not None and column in hist:
+                separators = hist[column]['edges']
+            else:
+                separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
+            
             origin_entropy = self.calc_entropy(y)
 
             for sep in separators:
                 left, right = y[attr <= sep], y[attr > sep]
+                
                 ig = origin_entropy - (left.size / y.size * self.calc_entropy(left) + right.size / y.size * self.calc_entropy(right))
                 
                 if ig > best_split.ig:
@@ -82,37 +88,47 @@ class MyTreeClf:
     def _is_expandable(self) -> bool:
         return self.leafs_cnt + 2 <= self.max_leafs and self._expanded + 2 <= self.max_leafs
     
-    def _build_tree(self, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'], level: int) -> None:
+    def _build_tree(self, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'], level: int, leafs_sum: float) -> None:
         if cntr.type == 'node':
             column = cntr.ptr.column if isinstance(cntr.ptr.column, str) else str(cntr.ptr.column)
             print((level - 1) * '\t' + column + ': ')
             print((level - 1) * '\t', end='')
             print(cntr.ptr.sep)
             print((level - 1) * '\t' + 'left:')
-            self._build_tree(cntr.ptr.left, level+1)
+            leafs_sum += self._build_tree(cntr.ptr.left, level+1, 0)
             print((level - 1) * '\t' + 'right:')
-            self._build_tree(cntr.ptr.right, level+1)
+            leafs_sum += self._build_tree(cntr.ptr.right, level+1, 0)
+            return leafs_sum
         if cntr.type == 'leaf':
             print(level * '\t' + 'proba: ')
             print(level * '\t', end='')
-            print(np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size)
-        
-    def build_tree(self) -> None:
-        self._build_tree(self._tree, 1)
+            proba = np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size
+            print(proba)
+            return proba
+            
+    def build_tree(self) -> float:
+        leafs_sum = 0.0
+        return self._build_tree(self._tree, 1, leafs_sum)
     
-    def _fit(self, X: pd.DataFrame, y: pd.Series) -> Union[Node, pd.Series]:
+    def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Union[Node, pd.Series]:
         if (self.max_depth >= self._depth):
             if not self._is_leaf(y) and self._is_expandable():
-                column, sep, ig, left, right = self.get_best_split(X, y)
-                cntr = self.Container(type='node', ptr=self.Node(sep=sep, column=column))
-                self._expanded += 1
-
-                self._depth += 1
-                cntr.ptr.left = self._fit(X.loc[left.index], left)
-                cntr.ptr.right = self._fit(X.loc[right.index], right)
-                self._depth -= 1
+                column, sep, ig, left, right = self.get_best_split(X, y, hist)
                 
-                return cntr
+                if left is not None and right is not None:
+                    cntr = self.Container(type='node', ptr=self.Node(sep=sep, column=column))
+                    self._expanded += 1
+
+                    self._depth += 1
+                    cntr.ptr.left = self._fit(X.loc[left.index], left, hist)
+                    cntr.ptr.right = self._fit(X.loc[right.index], right, hist)
+                    self._depth -= 1
+                    
+                    return cntr
+                else:
+                    self.leafs_cnt += 1
+                
+                    return self.Container(type='leaf', ptr=self.Leaf(value=y)) 
             else:
                 self.leafs_cnt += 1
                 
@@ -139,8 +155,7 @@ class MyTreeClf:
         hist: Dict[Union[str, int], np.ndarray] = None
         if self.bins is not None:
             hist = self._check_bins(X)
-        print(hist)
-        self._tree = self._fit(X, y)
+        self._tree = self._fit(X, y, hist)
         
     def _calc_proba(self, cntr: 'MyTreeClf.Container') -> float:
         return np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size
