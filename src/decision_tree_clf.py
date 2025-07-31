@@ -9,9 +9,14 @@ class MyTreeClf:
     class BestSplit:
         left: np.ndarray = None
         right: np.ndarray = None
-        ig: int = 0
+        gain: int = 0
         sep: float = 0.0
         column: str = ''
+        
+    @dataclass 
+    class FeatureImportance:
+        feature_size: int = 0
+        values: Dict[str, float] = None
         
     @dataclass 
     class Container:
@@ -39,6 +44,7 @@ class MyTreeClf:
         self._tree: 'MyTreeClf.Container' = None
         self.bins = bins
         self.criterion = criterion
+        self._fi = self.FeatureImportance()
         
     def __str__(self) -> str:
         return f"MyTreeClf class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"        
@@ -89,10 +95,10 @@ class MyTreeClf:
                 left, right = y[attr <= sep], y[attr > sep]
                 left_metric = left.size / y.size * heuristics[self.criterion](left) if left is not None else 0
                 right_metric = right.size / y.size * heuristics[self.criterion](right) if right is not None else 0
-                ig = origin_metric - left_metric - right_metric
+                gain = origin_metric - left_metric - right_metric
                                 
-                if ig > best_split.ig:
-                    best_split.ig = ig
+                if gain > best_split.gain:
+                    best_split.gain = gain
                     best_split.sep = sep
                     best_split.column = column
                     best_split.left = left
@@ -133,7 +139,17 @@ class MyTreeClf:
     
     def _create_leaf(self, y: pd.Series) -> 'MyTreeClf.Container':
         self.leafs_cnt += 1
-        return self.Container(type='leaf', ptr=self.Leaf(value=y)) 
+        return self.Container(type='leaf', ptr=self.Leaf(value=y))
+    
+    def _update_fi(self, y: pd.Series, best_split: 'MyTreeClf.BestSplit') -> None:
+        heuristics = {
+            'entropy' : self.calc_entropy,
+            'gini': self.calc_gini,
+        }
+        
+        left = best_split.left.size / y.size * heuristics[self.criterion](best_split.left)
+        right = best_split.right.size / y.size * heuristics[self.criterion](best_split.right)
+        self._fi.values[str(best_split.column)] += y.size / self._fi.feature_size * (heuristics[self.criterion](y) - left - right)
     
     def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Union[Node, pd.Series]:
         if (self.max_depth >= self._depth):
@@ -142,6 +158,7 @@ class MyTreeClf:
                 
                 if best_split.left is not None and best_split.right is not None:
                     cntr = self.Container(type='node', ptr=self.Node(sep=best_split.sep, column=best_split.column))
+                    self._update_fi(y, best_split)
                     self._expanded += 1
 
                     self._depth += 1
@@ -169,11 +186,21 @@ class MyTreeClf:
                 hist[column] = {'count': count, 'edges': edges}
                 
         return hist if len(hist) > 0 else None
+    
+    def _prepare_fi(self, X: pd.DataFrame) -> None:
+        self._fi.values = dict()
+        self._fi.feature_size = X.shape[0]
+        
+        for feature in X.columns:
+            self._fi.values[str(feature)] = 0.0
         
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
         hist: Dict[Union[str, int], np.ndarray] = None
+        
         if self.bins is not None:
             hist = self._check_bins(X)
+        
+        self._prepare_fi(X)
         self._tree = self._fit(X, y, hist)
         
     def _calc_proba(self, cntr: 'MyTreeClf.Container') -> float:

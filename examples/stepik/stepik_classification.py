@@ -23,3 +23,4 @@ def stepik_classification(example_config: Dict[str, int]):
     print(model.leafs_cnt)
     leafs_sum = model.build_tree()
     print(leafs_sum)
+    print(model._fi)
