@@ -29,7 +29,7 @@ class MyTreeClf:
     class Leaf:
         value: np.ndarray
     
-    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20, bins: Union[None, int] = None) -> None:
+    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20, bins: Union[None, int] = None, criterion: str = 'entropy') -> None:
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.max_leafs = max_leafs if max_leafs > 1 else 2
@@ -110,6 +110,11 @@ class MyTreeClf:
         leafs_sum = 0.0
         return self._build_tree(self._tree, 1, leafs_sum)
     
+    def _create_leaf(self, y: pd.Series) -> 'MyTreeClf.Container':
+        self.leafs_cnt += 1
+                
+        return self.Container(type='leaf', ptr=self.Leaf(value=y)) 
+    
     def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Union[Node, pd.Series]:
         if (self.max_depth >= self._depth):
             if not self._is_leaf(y) and self._is_expandable():
@@ -126,17 +131,11 @@ class MyTreeClf:
                     
                     return cntr
                 else:
-                    self.leafs_cnt += 1
-                
-                    return self.Container(type='leaf', ptr=self.Leaf(value=y)) 
+                    return self._create_leaf(y)
             else:
-                self.leafs_cnt += 1
-                
-                return self.Container(type='leaf', ptr=self.Leaf(value=y))
+                return self._create_leaf(y)
         else:
-            self.leafs_cnt += 1
-               
-            return self.Container(type='leaf', ptr=self.Leaf(value=y))
+            return self._create_leaf(y)
         
     def _check_bins(self, X: pd.DataFrame) -> Dict[Union[str, int], Dict[int, np.ndarray]]:
         hist = dict()
