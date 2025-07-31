@@ -23,6 +23,15 @@ CONFIGS_BINS: List[str]  = [
     r'examples/stepik/configs_bins/tree6.config',
 ]
 
+CONFIGS_CRITERION: List[str]  = [
+    r'examples/stepik/configs_criterion/tree1.config', 
+    r'examples/stepik/configs_criterion/tree2.config', 
+    r'examples/stepik/configs_criterion/tree3.config', 
+    r'examples/stepik/configs_criterion/tree4.config', 
+    r'examples/stepik/configs_criterion/tree5.config', 
+    r'examples/stepik/configs_criterion/tree6.config',
+]
+
 LEAF_CNT: List[int] = [
     2,
     5,
@@ -48,6 +57,24 @@ LEAF_SUM_BINS: List[int] = [
     5.85783,
     9.526468,
     12.025427,
+]
+
+LEAF_CNT_CRITERION: List[int] = [
+    2,
+    5,
+    10,
+    11,
+    21,
+    27,
+]
+
+LEAF_SUM_CRITERION: List[int] = [
+    0.981148,
+    2.799994,
+    5.020575,
+    5.200813,
+    10.198869,
+    12.412269,
 ]
 
 def test_stepik_classification_leafs_cnt():
@@ -76,3 +103,13 @@ def test_stepik_classification_leafs_sum_bins():
         model = MyTreeClf(**config)
         model.fit(X, y)
         assert round(model.build_tree(), 6) == LEAF_SUM_BINS[ind]
+        
+def test_stepik_classification_criterion():
+    X, y = read_data_classification()
+    
+    for ind, config_path in enumerate(CONFIGS_CRITERION):
+        config = read_config(config_path)
+        model = MyTreeClf(**config)
+        model.fit(X, y)
+        assert model.leafs_cnt == LEAF_CNT_CRITERION[ind]
+        assert round(model.build_tree(), 6) == LEAF_SUM_CRITERION[ind]
