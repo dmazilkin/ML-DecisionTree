@@ -12,7 +12,8 @@ def read_config(config_path: str):
         try:
             value = int(value)
         except:
-            value = None
+            if name.lower() == 'bins':
+                value = None
         finally:
             configs[name] = value
             

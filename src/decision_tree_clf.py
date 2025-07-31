@@ -38,6 +38,7 @@ class MyTreeClf:
         self._expanded = 0
         self._tree: 'MyTreeClf.Container' = None
         self.bins = bins
+        self.criterion = criterion
         
     def __str__(self) -> str:
         return f"MyTreeClf class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"        
@@ -54,8 +55,24 @@ class MyTreeClf:
             
         return entropy
     
+    def calc_gini(self, y: pd.Series) -> float:
+        gini = 1
+        labels_count = y.size
+            
+        for label in y.unique():
+            proba = np.sum(y == label) / labels_count
+            
+            if proba != 0:
+                gini -=  proba ** 2 
+            
+        return gini
+    
     def get_best_split(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Tuple[str, float, float, pd.DataFrame, pd.DataFrame]:
         best_split = self.BestSplit()
+        heuristics = {
+            'entropy' : self.calc_entropy,
+            'gini': self.calc_gini,
+        }
         
         for column in X.columns:
             attr: pd.Series = X[column].sort_values()
@@ -66,21 +83,22 @@ class MyTreeClf:
             else:
                 separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
             
-            origin_entropy = self.calc_entropy(y)
-
+            origin_metric = heuristics[self.criterion](y)
+        
             for sep in separators:
                 left, right = y[attr <= sep], y[attr > sep]
-                
-                ig = origin_entropy - (left.size / y.size * self.calc_entropy(left) + right.size / y.size * self.calc_entropy(right))
-                
+                left_metric = left.size / y.size * heuristics[self.criterion](left) if left is not None else 0
+                right_metric = right.size / y.size * heuristics[self.criterion](right) if right is not None else 0
+                ig = origin_metric - left_metric - right_metric
+                                
                 if ig > best_split.ig:
                     best_split.ig = ig
                     best_split.sep = sep
                     best_split.column = column
                     best_split.left = left
                     best_split.right = right
-                    
-        return best_split.column, best_split.sep, best_split.ig, best_split.left, best_split.right
+            
+        return best_split
     
     def _is_leaf(self, y: pd. Series) -> bool:
         return y.size < self.min_samples_split or self.calc_entropy(y) == 0.0
@@ -98,12 +116,15 @@ class MyTreeClf:
             leafs_sum += self._build_tree(cntr.ptr.left, level+1, 0)
             print((level - 1) * '\t' + 'right:')
             leafs_sum += self._build_tree(cntr.ptr.right, level+1, 0)
+            
             return leafs_sum
+        
         if cntr.type == 'leaf':
             print(level * '\t' + 'proba: ')
             print(level * '\t', end='')
             proba = np.sum(cntr.ptr.value == 1) / cntr.ptr.value.size
             print(proba)
+            
             return proba
             
     def build_tree(self) -> float:
@@ -112,21 +133,20 @@ class MyTreeClf:
     
     def _create_leaf(self, y: pd.Series) -> 'MyTreeClf.Container':
         self.leafs_cnt += 1
-                
         return self.Container(type='leaf', ptr=self.Leaf(value=y)) 
     
     def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Union[Node, pd.Series]:
         if (self.max_depth >= self._depth):
             if not self._is_leaf(y) and self._is_expandable():
-                column, sep, ig, left, right = self.get_best_split(X, y, hist)
+                best_split: 'MyTreeClf.BestSplit' = self.get_best_split(X, y, hist)
                 
-                if left is not None and right is not None:
-                    cntr = self.Container(type='node', ptr=self.Node(sep=sep, column=column))
+                if best_split.left is not None and best_split.right is not None:
+                    cntr = self.Container(type='node', ptr=self.Node(sep=best_split.sep, column=best_split.column))
                     self._expanded += 1
 
                     self._depth += 1
-                    cntr.ptr.left = self._fit(X.loc[left.index], left, hist)
-                    cntr.ptr.right = self._fit(X.loc[right.index], right, hist)
+                    cntr.ptr.left = self._fit(X.loc[best_split.left.index], best_split.left, hist)
+                    cntr.ptr.right = self._fit(X.loc[best_split.right.index], best_split.right, hist)
                     self._depth -= 1
                     
                     return cntr
