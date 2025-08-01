@@ -16,3 +16,9 @@ python main.py [OPTIONS]
 ### Available options
 - **-e, --example** (required) - type of example to run. Available examples: classification.
 - **-c, --config** (required) - path to configuration file.
+
+## Tests
+Test cases are placed in *tests/* folder. To run tests use pytest module with the following command:
+```console
+pytest tests/
+```
