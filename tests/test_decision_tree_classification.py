@@ -1,4 +1,3 @@
-import pytest
 from typing import List
 
 from examples.stepik.stepik_classification import read_data_classification
