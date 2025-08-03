@@ -11,13 +11,12 @@ def generate_data_regression() -> Tuple[pd.DataFrame, pd.Series]:
     
     return pd.DataFrame(X), pd.Series(y)
 
-def regression():
+def regression(examples_configs: Dict[str, int]):
     X, y = generate_data_regression()
     
-    model = MyTreeReg()
-    column, sep, gain = model.get_best_split(X, y)
-    print(column, sep, gain)
-        
+    model = MyTreeReg(**examples_configs)
+    model.fit(X, y)
+    model.build_tree()
     # figure, axes = plt.subplots(nrows=1, ncols=2)
     # axes[0].scatter(X, y, color='r')
     # axes[0].set_title('Training dataset')
