@@ -138,3 +138,22 @@ class MyTreeReg:
     def build_tree(self) -> float:
         leafs_sum = 0.0
         return self._build_tree(self._tree, 1, leafs_sum)
+    
+    def _predict(self, X: pd.DataFrame, cntr: Union['MyTreeReg.Node', 'MyTreeReg.Leaf']) -> float:
+        if cntr.type == 'leaf':
+            return np.mean(cntr.ptr.value)
+        
+        if cntr.type == 'node':
+            if X[cntr.ptr.column] <= cntr.ptr.sep and cntr.ptr.left is not None:
+                return self._predict(X, cntr.ptr.left)
+            if X[cntr.ptr.column] > cntr.ptr.sep and cntr.ptr.right is not None:
+                return self._predict(X, cntr.ptr.right)
+                    
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        dataset = X.reset_index(drop=True)
+        values = np.zeros(dataset.shape[0], dtype='float')
+        
+        for index, row in dataset.iterrows():
+            values[index] = self._predict(row, self._tree)
+        
+        return values
