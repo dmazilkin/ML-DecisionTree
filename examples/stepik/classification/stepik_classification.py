@@ -5,7 +5,7 @@ from sklearn.datasets import make_classification
 
 from src.decision_tree_clf import MyTreeClf
 
-DATA_PATH = r'examples/stepik/data_banknote_authentication.txt'
+DATA_PATH = r'examples/stepik/classification/data_banknote_authentication.txt'
 
 def read_data_classification() -> Tuple[pd.DataFrame, pd.Series]:
     df = pd.read_csv(DATA_PATH, header=None)
