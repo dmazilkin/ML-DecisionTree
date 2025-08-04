@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 from dataclasses import dataclass
 
 class MyTreeReg:
@@ -29,7 +29,7 @@ class MyTreeReg:
         left: pd.Series = None
         right: pd.Series = None
     
-    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20) -> None:
+    def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20, bins: int = None) -> None:
         self._max_depth = max_depth
         self._depth = 0
         self._min_samples_split = min_samples_split
@@ -37,31 +37,31 @@ class MyTreeReg:
         self._leafs_cnt = 0
         self._expanded = 0
         self._tree = None
+        self._bins = bins
     
     def __str__(self) -> str:
         return f"MyTreeReg class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"        
         
     def _calc_mse(self, y: pd.Series) -> float:
         return np.mean((y - np.mean(y))**2)
-    
-    def _calc_mse_gain(self, labels: pd.Series, left: pd.Series, right: pd.Series) -> float:
-        mse_origin = self._calc_mse(labels)
-        mse_left = self._calc_mse(left)
-        mse_right = self._calc_mse(right)
 
-        return mse_origin - left.size / labels.size * mse_left - right.size / labels.size * mse_right
-        
-    def get_best_split(self, X: pd.DataFrame, y: pd.Series) -> Tuple[Union[str, int], float, float]:
+    def get_best_split(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], Dict[int, np.ndarray]]) -> Tuple[Union[str, int], float, float]:
         best_split: 'MyTreeReg.BestSplit' = self.BestSplit()
         
         for column in X.columns:
             attrs: pd.Series = X[column].sort_values()
             unqiue_values: np.ndarray = attrs.unique()
-            separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
+            
+            if hist is not None and column in hist:
+                separators = hist[column]['edges']
+            else:
+                separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
 
             for sep in separators:
                 left, right = y[attrs <= sep], y[attrs > sep]
-                mse_gain = self._calc_mse_gain(y, left, right)
+                left_mse_weighted = left.size / y.size * self._calc_mse(left) if left.size != 0 else 0
+                right_mse_weighted = right.size / y.size * self._calc_mse(right) if right.size != 0 else 0
+                mse_gain = self._calc_mse(y) - left_mse_weighted - right_mse_weighted
                 
                 if best_split.mse_gain is None:
                     best_split.mse_gain = mse_gain
@@ -89,32 +89,52 @@ class MyTreeReg:
         self._leafs_cnt += 1
         return self.Container(type='leaf', ptr=self.Leaf(value=y))
     
-    def _fit(self, X: pd.DataFrame, y: pd.Series) -> 'MyTreeReg.Container':
+    def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], Dict[int, np.ndarray]]) -> 'MyTreeReg.Container':
         if self._depth < self._max_depth:
             if not self._is_leaf(y) and self._is_expandable():
-                best_split: 'MyTreeReg.BestSplit' = self.BestSplit()
-                best_split = self.get_best_split(X, y)
+                best_split: 'MyTreeReg.BestSplit' = self.get_best_split(X, y, hist)
                 
-                labels_left, labels_right = best_split.left, best_split.right
-                features_left, features_right = X.loc[labels_left.index], X.loc[labels_right.index]
-                cnt = self.Container(type='node', ptr=self.Node(column=best_split.column, sep=best_split.sep))
-                self._expanded += 1
-                    
-                self._depth += 1
-                cnt.ptr.left = self._fit(features_left, labels_left)
-                cnt.ptr.right = self._fit(features_right, labels_right)
-                self._depth -= 1
-                    
-                return cnt
+                if best_split.left is not None and best_split.right is not None:
+                    labels_left, labels_right = best_split.left, best_split.right
+                    features_left, features_right = X.loc[labels_left.index], X.loc[labels_right.index]
+                    cnt = self.Container(type='node', ptr=self.Node(column=best_split.column, sep=best_split.sep))
+                    self._expanded += 1
+                        
+                    self._depth += 1
+                    cnt.ptr.left = self._fit(features_left, labels_left, hist)
+                    cnt.ptr.right = self._fit(features_right, labels_right, hist)
+                    self._depth -= 1
+                        
+                    return cnt
+                else:
+                    return self._create_leaf(y)
             else:
                 return self._create_leaf(y)
         else:
             return self._create_leaf(y)
+        
+    def _check_bins(self, X: pd.DataFrame) -> Dict[Union[str, int], Dict[int, np.ndarray]]:
+        hist = dict()
+        
+        for column in X.columns:
+            attr: pd.Series = X[column].sort_values()
+            unqiue_values: np.ndarray = attr.unique()
+            
+            if unqiue_values.size - 1 > self._bins - 1:
+                count, edges = np.histogram(attr, bins=self._bins)
+                hist[column] = {'count': count, 'edges': edges}
+                
+        return hist if len(hist) > 0 else None
     
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        self._tree = self._fit(X, y)
+        hist: Dict[Union[str, int], Dict[int, np.ndarray]] = None
         
-    def _build_tree(self, cntr: Union['MyTreeReg.Node', 'MyTreeReg.Leaf'], level: int, leafs_sum: float) -> None:
+        if self._bins is not None:
+            hist = self._check_bins(X)
+        
+        self._tree = self._fit(X, y, hist)
+        
+    def _build_tree(self, cntr: Union['MyTreeReg.Node', 'MyTreeReg.Leaf'], level: int, leafs_sum: float) -> float:
         if cntr.type == 'node':
             column = cntr.ptr.column if isinstance(cntr.ptr.column, str) else str(cntr.ptr.column)
             print((level - 1) * '\t' + column + ': ')

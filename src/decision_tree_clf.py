@@ -193,7 +193,7 @@ class MyTreeClf:
             self._fi.values[str(feature)] = 0.0
         
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        hist: Dict[Union[str, int], np.ndarray] = None
+        hist: Dict[Union[str, int], Dict[int, np.ndarray]] = None
         
         if self.bins is not None:
             hist = self._check_bins(X)
