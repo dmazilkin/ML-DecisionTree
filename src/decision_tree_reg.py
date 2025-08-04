@@ -28,6 +28,11 @@ class MyTreeReg:
         mse_gain: float = None
         left: pd.Series = None
         right: pd.Series = None
+        
+    @dataclass 
+    class FeatureImportance:
+        feature_size: int = 0
+        values: Dict[str, float] = None
     
     def __init__(self, max_depth: int = 5, min_samples_split: int = 2, max_leafs: int = 20, bins: int = None) -> None:
         self._max_depth = max_depth
@@ -38,6 +43,7 @@ class MyTreeReg:
         self._expanded = 0
         self._tree = None
         self._bins = bins
+        self._fi = self.FeatureImportance()
     
     def __str__(self) -> str:
         return f"MyTreeReg class: max_depth={self.max_depth}, min_samples_split={self.min_samples_split}, max_leafs={self.max_leafs}"        
@@ -98,6 +104,7 @@ class MyTreeReg:
                     labels_left, labels_right = best_split.left, best_split.right
                     features_left, features_right = X.loc[labels_left.index], X.loc[labels_right.index]
                     cnt = self.Container(type='node', ptr=self.Node(column=best_split.column, sep=best_split.sep))
+                    self._update_fi(y, best_split)
                     self._expanded += 1
                         
                     self._depth += 1
@@ -126,12 +133,25 @@ class MyTreeReg:
                 
         return hist if len(hist) > 0 else None
     
+    def _update_fi(self, y: pd.Series, best_split: 'MyTreeReg.BestSplit') -> None:
+        left = best_split.left.size / y.size * self._calc_mse(best_split.left)
+        right = best_split.right.size / y.size * self._calc_mse(best_split.right)
+        self._fi.values[str(best_split.column)] += y.size / self._fi.feature_size * (self._calc_mse(y) - left - right)
+    
+    def _prepare_fi(self, X: pd.DataFrame) -> None:
+        self._fi.values = dict()
+        self._fi.feature_size = X.shape[0]
+        
+        for feature in X.columns:
+            self._fi.values[str(feature)] = 0.0
+    
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
         hist: Dict[Union[str, int], Dict[int, np.ndarray]] = None
         
         if self._bins is not None:
             hist = self._check_bins(X)
         
+        self._prepare_fi(X)
         self._tree = self._fit(X, y, hist)
         
     def _build_tree(self, cntr: Union['MyTreeReg.Node', 'MyTreeReg.Leaf'], level: int, leafs_sum: float) -> float:
