@@ -1,6 +1,17 @@
 # Decision Tree algorithm from scratch
 This repository contains Decision Tree implementation from scratch for classification problem.
 
+## About
+This Decision Tree implementation is based on **Leaf-wise algorithm**. 
+
+- Supports **bins** hyperparameter for speeding up the algorithm.
+- Supports **Feature Importance** calculation, which can help to understand the importance of features.
+- Supports classification heuristics:
+  - **Entropy** and **Information Gain**,
+  - **Gini Impurity** and **Gini Gain**,
+- Supports regression heuristics:
+  - **MSE** and **MSE Gain**.
+
 ## Dependencies
 To install all required dependencies, execute the following command:
 ```console
