@@ -39,11 +39,15 @@ class MyTreeClf:
         self.min_samples_split = min_samples_split
         self.max_leafs = max_leafs if max_leafs > 1 else 2
         self.leafs_cnt = 0
-        self._depth = 1
+        self._depth = 0
         self._expanded = 0
         self._tree: 'MyTreeClf.Container' = None
         self.bins = bins
         self.criterion = criterion
+        self._heuristics = {
+            'entropy' : self.calc_entropy,
+            'gini': self.calc_gini,
+        }
         self._fi = self.FeatureImportance()
         
     def __str__(self) -> str:
@@ -75,10 +79,6 @@ class MyTreeClf:
     
     def get_best_split(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Tuple[str, float, float, pd.DataFrame, pd.DataFrame]:
         best_split = self.BestSplit()
-        heuristics = {
-            'entropy' : self.calc_entropy,
-            'gini': self.calc_gini,
-        }
         
         for column in X.columns:
             attr: pd.Series = X[column].sort_values()
@@ -89,12 +89,12 @@ class MyTreeClf:
             else:
                 separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
             
-            origin_metric = heuristics[self.criterion](y)
+            origin_metric = self._heuristics[self.criterion](y)
         
             for sep in separators:
                 left, right = y[attr <= sep], y[attr > sep]
-                left_metric = left.size / y.size * heuristics[self.criterion](left) if left is not None else 0
-                right_metric = right.size / y.size * heuristics[self.criterion](right) if right is not None else 0
+                left_metric = left.size / y.size * self._heuristics[self.criterion](left) if left is not None else 0
+                right_metric = right.size / y.size * self._heuristics[self.criterion](right) if right is not None else 0
                 gain = origin_metric - left_metric - right_metric
                                 
                 if gain > best_split.gain:
@@ -107,10 +107,13 @@ class MyTreeClf:
         return best_split
     
     def _is_leaf(self, y: pd. Series) -> bool:
-        return y.size < self.min_samples_split or self.calc_entropy(y) == 0.0
+        label_count = np.sum([y == 1])
+        is_homogeneous = label_count == y.size or label_count == 0
+        
+        return y.size < self.min_samples_split or is_homogeneous
     
     def _is_expandable(self) -> bool:
-        return self.leafs_cnt + 2 <= self.max_leafs and self._expanded + 2 <= self.max_leafs
+        return self._expanded + 2 <= self.max_leafs
     
     def _build_tree(self, cntr: Union['MyTreeClf.Node', 'MyTreeClf.Leaf'], level: int, leafs_sum: float) -> None:
         if cntr.type == 'node':
@@ -142,20 +145,15 @@ class MyTreeClf:
         return self.Container(type='leaf', ptr=self.Leaf(value=y))
     
     def _update_fi(self, y: pd.Series, best_split: 'MyTreeClf.BestSplit') -> None:
-        heuristics = {
-            'entropy' : self.calc_entropy,
-            'gini': self.calc_gini,
-        }
-        
-        left = best_split.left.size / y.size * heuristics[self.criterion](best_split.left)
-        right = best_split.right.size / y.size * heuristics[self.criterion](best_split.right)
-        self._fi.values[str(best_split.column)] += y.size / self._fi.feature_size * (heuristics[self.criterion](y) - left - right)
+        left = best_split.left.size / y.size * self._heuristics[self.criterion](best_split.left)
+        right = best_split.right.size / y.size * self._heuristics[self.criterion](best_split.right)
+        self._fi.values[str(best_split.column)] += y.size / self._fi.feature_size * (self._heuristics[self.criterion](y) - left - right)
     
     def _fit(self, X: pd.DataFrame, y: pd.Series, hist: Dict[Union[str, int], np.ndarray]) -> Union[Node, pd.Series]:
-        if (self.max_depth >= self._depth):
+        if (self._depth < self.max_depth):
             if not self._is_leaf(y) and self._is_expandable():
                 best_split: 'MyTreeClf.BestSplit' = self.get_best_split(X, y, hist)
-                
+
                 if best_split.left is not None and best_split.right is not None:
                     cntr = self.Container(type='node', ptr=self.Node(sep=best_split.sep, column=best_split.column))
                     self._update_fi(y, best_split)
@@ -195,7 +193,7 @@ class MyTreeClf:
             self._fi.values[str(feature)] = 0.0
         
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        hist: Dict[Union[str, int], np.ndarray] = None
+        hist: Dict[Union[str, int], Dict[int, np.ndarray]] = None
         
         if self.bins is not None:
             hist = self._check_bins(X)
