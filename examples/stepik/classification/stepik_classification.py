@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from typing import Dict, Tuple
 from sklearn.datasets import make_classification
 
-from src.decision_tree_clf import MyTreeClf
+from decision_tree.decision_tree_clf import MyTreeClf
 
 DATA_PATH = r'examples/stepik/classification/data_banknote_authentication.txt'
 

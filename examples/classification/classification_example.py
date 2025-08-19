@@ -4,7 +4,7 @@ from typing import Dict, Tuple
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 
-from src.decision_tree_clf import MyTreeClf
+from decision_tree.decision_tree_clf import MyTreeClf
 
 def generate_data_classification() -> Tuple[pd.DataFrame, pd.Series]:
     X, y = make_classification(n_samples=1000, n_features=2, n_informative=2, n_redundant=0, n_repeated=0, n_classes=2, random_state=42)

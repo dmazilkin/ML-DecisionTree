@@ -1,7 +1,7 @@
 from typing import Dict
 from sklearn.datasets import load_diabetes
 
-from src.decision_tree_reg import MyTreeReg
+from decision_tree.decision_tree_reg import MyTreeReg
 
 def load_dataset():
     return load_diabetes(return_X_y=True, as_frame=True)

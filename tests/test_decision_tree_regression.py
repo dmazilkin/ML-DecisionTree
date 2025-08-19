@@ -1,7 +1,7 @@
 from typing import List
 
 from examples.stepik.regression.stepik_regression import load_dataset
-from src.decision_tree_reg import MyTreeReg
+from decision_tree.decision_tree_reg import MyTreeReg
 from helpers.config_parser import read_config
 
 REG_CONFIGS_PATH = r'examples/stepik/regression/'

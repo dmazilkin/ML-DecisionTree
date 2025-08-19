@@ -4,7 +4,7 @@ from typing import Dict, Tuple
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
 
-from src.decision_tree_reg import MyTreeReg
+from decision_tree.decision_tree_reg import MyTreeReg
 
 def generate_data_regression() -> Tuple[pd.DataFrame, pd.Series]:
     X, y = make_regression(n_samples=100, n_features=1, n_informative=1, noise=5, random_state=42)

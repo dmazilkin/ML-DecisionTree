@@ -1,7 +1,7 @@
 from typing import List
 
 from examples.stepik.classification.stepik_classification import read_data_classification
-from src.decision_tree_clf import MyTreeClf
+from decision_tree.decision_tree_clf import MyTreeClf
 from helpers.config_parser import read_config
 
 CLF_CONFIGS_PATH = r'examples/stepik/classification/'
