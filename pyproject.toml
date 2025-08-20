@@ -1,5 +1,5 @@
 [project]
-name = "decisiontree"
+name = "decision_tree"
 version = "0.1.0"
 description = "Decision Tree algorithm implementation."
 authors = [
@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [tool.poetry]
+packages = [
+    { include = 'decision_tree' }
+]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.4.1"
