@@ -1,0 +1,25 @@
+[project]
+name = "decisiontree"
+version = "0.1.0"
+description = "Decision Tree algorithm implementation."
+authors = [
+    {name = "Dmitrii Mazilkin",email = "dim.mazilkin@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy (==2.3.1)",
+    "matplotlib (==3.10.3)",
+    "scikit-learn (==1.7.0)",
+    "pandas (==2.3.1)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.4.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
