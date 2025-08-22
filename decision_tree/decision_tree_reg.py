@@ -91,7 +91,7 @@ class MyTreeReg:
     def _is_expandable(self) -> bool:
         return self._expanded + 2 <= self._max_leafs
     
-    def _create_leaf(self, y: pd.Series) -> 'MyTreeReg.Containter':
+    def _create_leaf(self, y: pd.Series) -> 'MyTreeReg.Container':
         self._leafs_cnt += 1
         return self.Container(type='leaf', ptr=self.Leaf(value=y))
     
