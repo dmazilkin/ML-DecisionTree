@@ -15,13 +15,13 @@ This Decision Tree implementation is based on **Leaf-wise algorithm**.
 ## Dependencies
 To install all required dependencies, execute the following command:
 ```console
-pip install requirements.txt
+poetry install
 ```
 
 ## Usage
 To start main script, execute the following command:
 ```console
-python main.py [OPTIONS]
+poetry run python main.py [OPTIONS]
 ```
 
 ### Available options
@@ -31,5 +31,5 @@ python main.py [OPTIONS]
 ## Tests
 Test cases are placed in *tests/* folder. To run tests use pytest module with the following command:
 ```console
-pytest tests/
+poetry run pytest tests/
 ```
