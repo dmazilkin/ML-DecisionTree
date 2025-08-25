@@ -181,7 +181,7 @@ class MyTreeClf:
             
             if unqiue_values.size - 1 > self.bins - 1:
                 count, edges = np.histogram(attr, bins=self.bins)
-                hist[column] = {'count': count, 'edges': edges}
+                hist[column] = {'count': count, 'edges': edges[1: -1]}
                 
         return hist if len(hist) > 0 else None
     
