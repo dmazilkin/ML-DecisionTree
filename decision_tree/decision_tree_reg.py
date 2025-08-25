@@ -62,11 +62,11 @@ class MyTreeReg:
                 separators = hist[column]['edges']
             else:
                 separators = np.array([(unqiue_values[i] + unqiue_values[i + 1]) / 2 for i in range(unqiue_values.size - 1)])
-
+            
             for sep in separators:
                 left, right = y[attrs <= sep], y[attrs > sep]
-                left_mse_weighted = left.size / y.size * self._calc_mse(left) if left.size != 0 else 0
-                right_mse_weighted = right.size / y.size * self._calc_mse(right) if right.size != 0 else 0
+                left_mse_weighted = left.shape[0] / y.shape[0] * self._calc_mse(left) if left.shape[0] != 0 else 0
+                right_mse_weighted = right.shape[0] / y.shape[0] * self._calc_mse(right) if right.shape[0] != 0 else 0
                 mse_gain = self._calc_mse(y) - left_mse_weighted - right_mse_weighted
                 
                 if best_split.mse_gain is None:
@@ -91,7 +91,7 @@ class MyTreeReg:
     def _is_expandable(self) -> bool:
         return self._expanded + 2 <= self._max_leafs
     
-    def _create_leaf(self, y: pd.Series) -> 'MyTreeReg.Containter':
+    def _create_leaf(self, y: pd.Series) -> 'MyTreeReg.Container':
         self._leafs_cnt += 1
         return self.Container(type='leaf', ptr=self.Leaf(value=y))
     
@@ -129,7 +129,7 @@ class MyTreeReg:
             
             if unqiue_values.size - 1 > self._bins - 1:
                 count, edges = np.histogram(attr, bins=self._bins)
-                hist[column] = {'count': count, 'edges': edges}
+                hist[column] = {'count': count, 'edges': edges[1:-1]}
                 
         return hist if len(hist) > 0 else None
     
